@@ -8,19 +8,23 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoop;
-import io.netty.handler.codec.http.DefaultHttpRequest;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpVersion;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.concurrent.TimeUnit;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpVersion;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import net.md_5.bungee.BungeeCord;
 import net.md_5.bungee.api.Callback;
 import net.md_5.bungee.netty.PipelineUtils;
+
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class HttpClient
@@ -31,6 +35,17 @@ public class HttpClient
 
     @SuppressWarnings("UnusedAssignment")
     public static void get(String url, EventLoop eventLoop, final Callback<String> callback)
+    {
+        httpRequest( url, null, eventLoop, callback );
+    }
+
+    @SuppressWarnings("UnusedAssignment")
+    public static void post(String url, final Object data, EventLoop eventLoop, final Callback<String> callback)
+    {
+        httpRequest( url, data, eventLoop, callback );
+    }
+
+    private static void httpRequest(String url, final Object data, EventLoop eventLoop, final Callback<String> callback)
     {
         Preconditions.checkNotNull( url, "url" );
         Preconditions.checkNotNull( eventLoop, "eventLoop" );
@@ -79,8 +94,20 @@ public class HttpClient
                 if ( future.isSuccess() )
                 {
                     String path = uri.getRawPath() + ( ( uri.getRawQuery() == null ) ? "" : "?" + uri.getRawQuery() );
-
-                    HttpRequest request = new DefaultHttpRequest( HttpVersion.HTTP_1_1, HttpMethod.GET, path );
+                    HttpRequest request;
+                    if ( data == null )
+                    {
+                        request = new DefaultHttpRequest( HttpVersion.HTTP_1_1, HttpMethod.GET, path );
+                    } else
+                    {
+                        DefaultFullHttpRequest fullRequest = new DefaultFullHttpRequest( HttpVersion.HTTP_1_1, HttpMethod.POST, path );
+                        fullRequest.headers().set( HttpHeaders.Names.CONTENT_TYPE, "application/json" );
+                        String content = BungeeCord.getInstance().gson.toJson( data );
+                        byte[] raw = content.getBytes( "UTF-8" );
+                        fullRequest.headers().set( HttpHeaders.Names.CONTENT_LENGTH, raw.length );
+                        fullRequest.content().clear().writeBytes( raw );
+                        request = fullRequest;
+                    }
                     request.headers().set( HttpHeaderNames.HOST, uri.getHost() );
 
                     future.channel().writeAndFlush( request );

@@ -6,7 +6,6 @@ import com.google.gson.Gson;
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashSet;
@@ -417,7 +416,7 @@ public class InitialHandler extends PacketHandler implements PendingConnection
         BungeeCipher encrypt = EncryptionUtil.getCipher( true, sharedKey );
         ch.addBefore( PipelineUtils.FRAME_PREPENDER, PipelineUtils.ENCRYPT_HANDLER, new CipherEncoder( encrypt ) );
 
-        String encName = URLEncoder.encode( InitialHandler.this.getName(), "UTF-8" );
+        String username = InitialHandler.this.getName();
 
         MessageDigest sha = MessageDigest.getInstance( "SHA-1" );
         for ( byte[] bit : new byte[][]
@@ -427,11 +426,8 @@ public class InitialHandler extends PacketHandler implements PendingConnection
         {
             sha.update( bit );
         }
-        String encodedHash = URLEncoder.encode( new BigInteger( sha.digest() ).toString( 16 ), "UTF-8" );
-
-        String preventProxy = ( BungeeCord.getInstance().config.isPreventProxyConnections() && getSocketAddress() instanceof InetSocketAddress ) ? "&ip=" + URLEncoder.encode( getAddress().getAddress().getHostAddress(), "UTF-8" ) : "";
-        String authURL = "https://sessionserver.mojang.com/session/minecraft/hasJoined?username=" + encName + "&serverId=" + encodedHash + preventProxy;
-
+        String serverID = new BigInteger( sha.digest() ).toString( 16 );
+        final HasJoinedRequest data = new HasJoinedRequest( username, serverID );
         Callback<String> handler = new Callback<String>()
         {
             @Override
@@ -457,7 +453,7 @@ public class InitialHandler extends PacketHandler implements PendingConnection
             }
         };
         thisState = State.FINISHING;
-        HttpClient.get( authURL, ch.getHandle().eventLoop(), handler );
+        HttpClient.post( HasJoinedRequest.URL, data, ch.getHandle().eventLoop(), handler );
     }
 
     private void finish()
